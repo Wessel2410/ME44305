@@ -77,9 +77,8 @@ class Tship(sim.Component):
         # Deal with desination
         self.currentPort = self.destinationPort
         River[River.index(self.currentPort)].MyQueue.add(self)
-        self.passivate()
+        #self.passivate()
         
-
 
 class TchargingStation(sim.Component):
     def setup(self):
@@ -91,41 +90,43 @@ class TchargingStation(sim.Component):
         while True:
             print("In Process")
             if self.MyPort.EmptyBatteries > 0:
-                self.hold(ChargingTime)
                 self.MyPort.EmptyBatteries -=1
+                self.hold(ChargingTime)
                 self.TotalCharged += 1
+                self.MyPort.BattertCount += 1
                 
 
 
 class TquaySide(sim.Component):
     def setup (self):
         self.MyQueue = sim.Queue (self.name () + '-WaitingLine')
-        self.Myport = None
+        self.MyPort = None
     
     def process(self):
         while True:
-            if len(self.Myport.MyQueue)==0:
+            while self.MyPort.MyQueue.lenght == 0:
                 self.standby()
-            else:
-                Ship = self.Myport.MyQueue[0]
-                self.Myport.MyQueue.remove(0)
-                self.hold(Ship.CargoCap*ContainerLoadingTime)
-                self.hold((Ship.EmptyBatteries+Ship.FullBatteries+1)*ContainerLoadingTime)
-                self.MyPort.EmptyBatteries += (Ship.EmptyBatteries+1)
                 
-                ContainerTarget, BatteryCargo, Desination = GetRoute()
-                
-                self.hold(ContainerTarget*ContainerLoadingTime)
-                self.hold(BatteryCargo*ContainerLoadingTime)
-                Ship.BatteryLimit = BatteryCargo
-                self.MyPort.BattertCount -= BatteryCargo
-                
-                Ship.Desination = Desination
-                Ship.Charge = BatteryCargo*MaxBatEnergy
-                Ship.FullBatteries = BatteryCargo
-                Ship.EmptyBatteries = 0
-                Ship.HalfBatteryCharge = 1
-                sim.activate(Ship)
+            Ship = self.MyPort.MyQueue.pop()
+            #self.MyPort.MyQueue.remove(0)
+            self.hold(Ship.CargoCap*ContainerLoadingTime)
+            self.hold((Ship.EmptyBatteries+Ship.FullBatteries+1)*ContainerLoadingTime)
+            self.MyPort.BattertCount += Ship.FullBatteries
+            self.MyPort.EmptyBatteries += (Ship.EmptyBatteries+1)
+            
+            Desination, ContainerTarget, BatteryCargo = GetRoute(Ship.currentPort)
+            
+            self.hold(ContainerTarget*ContainerLoadingTime)
+            self.hold(BatteryCargo*ContainerLoadingTime)
+            Ship.BatteryLimit = BatteryCargo
+            self.MyPort.BattertCount -= BatteryCargo
+            
+            Ship.Desination = Desination
+            Ship.Charge = BatteryCargo*MaxBatEnergy
+            Ship.FullBatteries = BatteryCargo - 1
+            Ship.EmptyBatteries = 0
+            Ship.HalfBatteryCharge = 1
+            sim.activate(Ship)
             
 
 class Tport(sim.Component):
@@ -133,7 +134,7 @@ class Tport(sim.Component):
         self.MyQueue = sim.Queue (self.name () + '-WaitingToPort')
         self.name = self.name()
         self.quay = TquaySide()
-        self.quay.Myport = self
+        self.quay.MyPort = self
         self.CS = TchargingStation()
         self.CS.MyPort = self
         self.EmptyBatteries = 20
@@ -146,19 +147,19 @@ class Tport(sim.Component):
                 self.RequestBatteries = True
             else:
                 self.RequestBatteries = False       
-        
+
 
 Port1 = Tport("Rotterdam")
 Port2 = Tport("Nijmegen")
 Port3 = Tport("Dusseldorf")
+River = [Port1,Port2,Port3]
 
 Ship1 = Tship()
-Ship1.activate()
+Ship1.currentPort = "Rotterdam"
 Port1.MyQueue.add(Ship1)
 
-River = [Port1,Port2,Port3]
 
 env = sim.Environment (trace = True)
 
-env.run (12*3600)
+env.run(duration=12*3600)
 
