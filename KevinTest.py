@@ -2,6 +2,8 @@
 import salabim as sim
 import numpy as np
 
+# ----- Import function -----
+from PortDistances import find_port_distance
 
 class ShipGenerator(sim.Component):
     """
@@ -37,6 +39,7 @@ class Ship(sim.Component):
     def setup(self, current_port, destination_port,
               current_port_string, destination_port_string):
         self.length = 100
+        self.speed = 15
         self.current_port = current_port
         self.current_port_string = current_port_string
         self.destination_port = destination_port
@@ -48,8 +51,15 @@ class Ship(sim.Component):
             if self in self.current_port.queue:
                 self.leave(self.current_port.queue)
 
-            # Start 'sailing'
-            self.hold(30)
+            # Find port distance
+            distance = find_port_distance(self.current_port_string,
+                                          self.destination_port_string)
+
+            # Calculate voyage duration
+            duration = distance / self.speed * 60
+
+            # Start holding for the duration
+            self.hold(duration)
 
             # Enter the destination port's queue
             self.enter(self.destination_port.queue)
