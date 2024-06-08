@@ -3,7 +3,15 @@ import salabim as sim
 import numpy as np
 
 # ----- Import function -----
-from PortDistances import find_port_distance
+from PortFunctions import find_port_distance, get_port_delay
+
+# ----- Create constants -----
+container_time = 2  # [min]
+
+
+# ----- Create simulation constants -----
+sim_length = 2000  # [min]
+
 
 class ShipGenerator(sim.Component):
     """
@@ -38,15 +46,23 @@ class Ship(sim.Component):
     """
     def setup(self, current_port, destination_port,
               current_port_string, destination_port_string):
-        self.length = 100
-        self.speed = 15
+        self.length = 100  # [m]
+        self.speed = 15  # [km/h]
         self.current_port = current_port
         self.current_port_string = current_port_string
         self.destination_port = destination_port
         self.destination_port_string = destination_port_string
+        self.container_target = 0
 
     def process(self):
         while True:
+            # Sample amount of containers to be loaded onboard
+            self.container_target = int(sim.Uniform(50, 100).sample())
+            loading_time = self.container_target * container_time
+
+            # Load containers
+            self.hold(loading_time)
+
             # Leave the current port's queue if it's in one
             if self in self.current_port.queue:
                 self.leave(self.current_port.queue)
@@ -56,10 +72,14 @@ class Ship(sim.Component):
                                           self.destination_port_string)
 
             # Calculate voyage duration
-            duration = distance / self.speed * 60
+            duration = distance / self.speed
 
-            # Start holding for the duration
+            # Start holding for the duration of voyage
             self.hold(duration)
+
+            # Arrive at port, but with possible waiting time
+            waiting_time = get_port_delay()
+            self.hold(get_port_delay())
 
             # Enter the destination port's queue
             self.enter(self.destination_port.queue)
@@ -75,6 +95,10 @@ class Ship(sim.Component):
             # Update the destination ports
             self.destination_port = end_port
             self.destination_port_string = end_port_string
+
+            # Start unloading cargo
+            unloading_time = self.container_target * container_time
+            self.hold(unloading_time)
 
 
 class Port(sim.Component):
@@ -180,5 +204,5 @@ port_dict = {'Rotterdam': port_rotterdam,
              'Delfzijl': port_delfzijl}
 
 # Start simulation
-env.run(till=1000)
+env.run(till=sim_length)
 
