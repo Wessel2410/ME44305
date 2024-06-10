@@ -1,16 +1,21 @@
 # ----- Import libraries -----
 import salabim as sim
 import numpy as np
+import math
 
 # ----- Import function -----
 from PortFunctions import find_port_distance, get_port_delay
 
 # ----- Create constants -----
-container_time = 2  # [min]
-
+container_time = 0.05  # [hr]
+battery_capacity = 2000  # [kWh]
+charging_time = 2  # [hr]
+ship_battery_limit = 38  # [-]
+additional_battery_number = 20  # [-]
+battery_warning = ship_battery_limit  # [-]
 
 # ----- Create simulation constants -----
-sim_length = 2000  # [min]
+sim_length = 2000  # [hr]
 
 
 class ShipGenerator(sim.Component):
@@ -53,6 +58,11 @@ class Ship(sim.Component):
         self.destination_port = destination_port
         self.destination_port_string = destination_port_string
         self.container_target = 0
+        self.battery_limit = ship_battery_limit  # Also assume 2 kWh per battery unit
+        self.power = 1000  # [kW]
+        self.full_batteries = 0
+        self.empty_batteries = 0
+        self.half_battery_charge = 0
 
     def process(self):
         while True:
@@ -62,6 +72,25 @@ class Ship(sim.Component):
 
             # Load containers
             self.hold(loading_time)
+
+            # Check if arrival port has a warning on it
+            if self.current_port.warning_status:
+                # Then load even more battery containers to compensate
+                self.battery_limit = (ship_battery_limit
+                                      + additional_battery_number)
+            # If no warning exists
+            else:
+                # Then reset to nominal value
+                self.battery_limit = ship_battery_limit
+
+            # Load battery containers
+            self.hold(self.battery_limit * container_time)
+            self.current_port.batteries -= self.battery_limit
+            self.current_port.activate(process='check_warning')
+
+            # Update battery / charge
+            self.full_batteries = self.battery_limit
+            self.charge = self.full_batteries * battery_capacity
 
             # Leave the current port's queue if it's in one
             if self in self.current_port.queue:
@@ -74,12 +103,24 @@ class Ship(sim.Component):
             # Calculate voyage duration
             duration = distance / self.speed
 
-            # Start holding for the duration of voyage
+            # Start holding for the duration of voyage in hours
             self.hold(duration)
 
             # Arrive at port, but with possible waiting time
             waiting_time = get_port_delay()
             self.hold(get_port_delay())
+
+            # Update battery / charge
+            depleted_charge = duration * self.power
+            charge_ratio = (self.charge - depleted_charge) / self.charge
+
+            self.full_batteries = math.floor(self.battery_limit * charge_ratio)
+            self.empty_batteries = math.floor(self.battery_limit
+                                              * (1 - charge_ratio))
+            self.half_battery_charge = ((self.battery_limit * charge_ratio)
+                                        - self.full_batteries)
+
+            self.charge -= depleted_charge
 
             # Enter the destination port's queue
             self.enter(self.destination_port.queue)
@@ -100,6 +141,19 @@ class Ship(sim.Component):
             unloading_time = self.container_target * container_time
             self.hold(unloading_time)
 
+            # Start unloading batteries
+            battery_unloading_time = self.battery_limit * container_time
+            self.hold(battery_unloading_time)
+
+            # Update port's batteries
+            self.current_port.batteries += self.full_batteries
+            self.current_port.empty_batteries += self.empty_batteries
+            self.current_port.half_empty_batteries += 1
+            self.current_port.half_empty_charges.append(self.half_battery_charge)
+
+            # Activate the charging station since new batteries have arrived
+            self.current_port.activate(process='charging_station')
+
 
 class Port(sim.Component):
     """
@@ -108,6 +162,60 @@ class Port(sim.Component):
     def setup(self):
         self.name = self.name()
         self.queue = sim.Queue(self.name)
+        self.batteries = 100  # Assume 100 batteries in port to start
+        self.empty_batteries = 0  # No empty batteries to start
+        self.half_empty_batteries = 0  # No half empty batteries to start
+        self.half_empty_charges = []  # No half empty batteries to start
+        self.warning_status = False
+
+    # Charging station, which is activated by the arrival of new batteries
+    def charging_station(self):
+        # Check for any half empty battery containers
+        while len(self.half_empty_charges) > 0:
+            # Charge said half empty battery container until it's full
+            self.hold(self.half_empty_charges[0] * charging_time)
+
+            # Remove battery from half empty list since it's charged
+            del self.half_empty_charges[0]
+
+            # Add now fully charged battery
+            self.batteries += 1
+
+        # Check for any empty batteries
+        while self.empty_batteries > 0:
+            # Charge a single battery at a time (for now)
+            self.hold(charging_time)
+
+            # Update the amount of empty batteries left
+            self.empty_batteries -= 1
+
+            # Add fully charged battery
+            self.batteries += 1
+
+        # Finally check if the battery warning threshold has been cleared
+        if self.batteries > battery_warning and self.warning_status:
+            # If so, then remove warning status
+            self.warning_status = False
+
+            # Add print for fun (and to check)
+            print(f"Warning deactivated in the port of {self.name}.")
+
+        # Passivate self to save resources - until more batteries arrive
+        self.passivate()
+
+    # Warning check after new batteries are loaded from port to ship
+    def check_warning(self):
+        # If battery warning threshold has been breached
+        if self.batteries <= battery_warning:
+            # Then add the warning status to the port
+            self.warning_status = True
+
+            # Add print for fun (and to check)
+            print(f"Warning activated in the port of {self.name}!")
+
+        # Passivate self to save resources - until more batteries are loaded
+        self.passivate()
+
 
 
 def port_choice(current_port=None):
@@ -152,10 +260,10 @@ def port_choice(current_port=None):
 
 
 # Create environment
-env = sim.Environment(trace=True)
+env = sim.Environment(trace=False)
 
 # Create a certain number of ships using the Ship Generator
-ShipGenerator(amount_of_ships=10)
+ShipGenerator(amount_of_ships=1)
 
 # Create all ports included in the simulation
 port_rotterdam = Port('Rotterdam')
