@@ -15,7 +15,7 @@ additional_battery_number = 20  # [-]
 battery_warning = ship_battery_limit  # [-]
 
 # ----- Create simulation constants -----
-amount_of_ships = 10  # [-]
+sim_ship_number = 10  # [-]
 sim_length = 2000  # [hr]
 
 
@@ -264,7 +264,7 @@ def port_choice(current_port=None):
 env = sim.Environment(trace=False)
 
 # Create a certain number of ships using the Ship Generator
-ShipGenerator(amount_of_ships=amount_of_ships)
+ShipGenerator(amount_of_ships=sim_ship_number)
 
 # Create all ports included in the simulation
 port_rotterdam = Port('Rotterdam')
