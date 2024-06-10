@@ -109,7 +109,7 @@ class Ship(sim.Component):
 
             # Arrive at port, but with possible waiting time
             waiting_time = get_port_delay()
-            self.hold(get_port_delay())
+            self.hold(waiting_time)
 
             # Update battery / charge
             depleted_charge = duration * self.power
