@@ -203,14 +203,8 @@ class Port(sim.Component):
 
             # Add fully charged battery
             self.batteries += 1
-
-        # Finally check if the battery warning threshold has been cleared
-        if self.batteries > battery_warning and self.warning_status:
-            # If so, then remove warning status
-            self.warning_status = False
-
-            # Add print for fun (and to check)
-            print(f"Warning deactivated in the port of {self.name}.")
+            
+            self.activate(process='check_warning')
 
         # Passivate self to save resources - until more batteries arrive
         self.passivate()
@@ -225,6 +219,13 @@ class Port(sim.Component):
             # Add print for fun (and to check)
             print(f"Warning activated in the port of {self.name}!")
             print(f"Only {self.batteries} left!")
+            
+        if (self.batteries > battery_warning) and self.warning_status:
+            # If so, then remove warning status
+            self.warning_status = False
+
+            # Add print for fun (and to check)
+            print(f"Warning deactivated in the port of {self.name}.")
 
         # Passivate self to save resources - until more batteries are loaded
         self.passivate()
