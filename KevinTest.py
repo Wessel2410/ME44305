@@ -2,6 +2,7 @@
 import salabim as sim
 import numpy as np
 import math
+import csv
 
 # ----- Import function -----
 from PortFunctions import find_port_distance, get_port_delay
@@ -15,9 +16,12 @@ additional_battery_number = 20  # [-]
 battery_warning = ship_battery_limit  # [-]
 
 # ----- Create simulation constants -----
-sim_ship_number = 1  # [-]
+sim_ship_number = 10  # [-]
 sim_length = 10000  # [hr]
 
+
+# ----- Create record keeping -----
+Trace = [["Time", "Object", "Event"]]
 
 class ShipGenerator(sim.Component):
     """
@@ -41,7 +45,6 @@ class ShipGenerator(sim.Component):
             Ship(current_port=start_port, destination_port=end_port,
                  current_port_string=start_port_string,
                  destination_port_string=end_port_string)
-
             # Hold generator to avoid congestion
             self.hold(sim.Uniform(5, 15).sample())
 
@@ -73,8 +76,9 @@ class Ship(sim.Component):
 
             # Load containers
             self.hold(loading_time)
-            print(f"{env.now()}: Ship has loaded {self.container_target} "
+            print(f"{env.now()}: {self.name()} has loaded {self.container_target} "
                   f"containers as cargo.")
+            Trace.append([env.now(), f"{self.name()}", f"loaded {self.container_target} containers as cargo in {self.current_port_string}"])
 
             # Check if arrival port has a warning on it
             if self.destination_port.warning_status:
@@ -88,12 +92,14 @@ class Ship(sim.Component):
 
             # Load battery containers
             self.hold(self.battery_limit * container_time)
-            print(f"{env.now()}: Ship has loaded {self.battery_limit} "
+            print(f"{env.now()}: {self.name()} has loaded {self.battery_limit} "
                   f"batteries from {self.current_port_string}.")
+            Trace.append([env.now(),f"{self.name()}", f"Ship has loaded {self.battery_limit} batteries from {self.current_port_string}"])
 
             self.current_port.batteries -= self.battery_limit
             print(f"{env.now()}: {self.current_port_string} has "
                   f"{self.current_port.batteries} batteries left.")
+            Trace.append([env.now(),f"{self.current_port_string}", f"{self.current_port_string} has {self.current_port.batteries} batteries left"])
 
             self.current_port.activate(process='check_warning')
 
@@ -220,12 +226,16 @@ class Port(sim.Component):
             print(f"Warning activated in the port of {self.name}!")
             print(f"Only {self.batteries} left!")
             
+            Trace.append([env.now(), {self.name}, f"Warning activated in {self.name}, only {self.batteries} left"])
+            
+            
         if (self.batteries > battery_warning) and self.warning_status:
             # If so, then remove warning status
             self.warning_status = False
 
             # Add print for fun (and to check)
             print(f"Warning deactivated in the port of {self.name}.")
+            Trace.append([env.now(), {self.name}, f"Warning deactivated in {self.name}, {self.batteries} available"])
 
         # Passivate self to save resources - until more batteries are loaded
         self.passivate()
@@ -326,3 +336,7 @@ port_dict = {'Rotterdam': port_rotterdam,
 
 # Start simulation
 env.run(till=sim_length)
+
+with open('Trace.csv', 'w', newline='') as file:
+    writer = csv.writer(file)
+    writer.writerows(Trace)
