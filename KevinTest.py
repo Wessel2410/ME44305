@@ -340,3 +340,22 @@ env.run(till=sim_length)
 with open('Trace.csv', 'w', newline='') as file:
     writer = csv.writer(file)
     writer.writerows(Trace)
+
+# Results
+print("\n_______________RESULTS_________________")
+TotBat = 0
+for value, port in port_dict.items():
+    print(f"{port.name}: Batteries {port.batteries}")
+    TotBat += port.empty_batteries
+print("Total number of batteries in ports: ", TotBat)
+
+print("\n")
+for value, port in port_dict.items():
+    print(f"{port.name}: Warningstatus {port.warning_status}")
+    
+print("\n")
+TotBat = 0
+for value, port in port_dict.items():
+    print(f"{port.name}: Empty batteries {port.empty_batteries}")
+    TotBat += port.empty_batteries
+print("Total number of empty batteries in ports: ", TotBat)
