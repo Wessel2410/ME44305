@@ -8,15 +8,15 @@ from PortFunctions import find_port_distance, get_port_delay
 
 # ----- Create constants -----
 container_time = 0.05  # [hr]
-battery_capacity = 2000  # [kWh]
+battery_capacity = 3000  # [kWh]
 charging_time = 2  # [hr]
-ship_battery_limit = 38  # [-]
+ship_battery_limit = 25  # [-]
 additional_battery_number = 20  # [-]
 battery_warning = ship_battery_limit  # [-]
 
 # ----- Create simulation constants -----
-sim_ship_number = 10  # [-]
-sim_length = 2000  # [hr]
+sim_ship_number = 1  # [-]
+sim_length = 10000  # [hr]
 
 
 class ShipGenerator(sim.Component):
@@ -59,7 +59,7 @@ class Ship(sim.Component):
         self.destination_port = destination_port
         self.destination_port_string = destination_port_string
         self.container_target = 0
-        self.battery_limit = ship_battery_limit  # Also assume 2 kWh per battery unit
+        self.battery_limit = ship_battery_limit  # Also assume 3 kWh per battery unit
         self.power = 1000  # [kW]
         self.full_batteries = 0
         self.empty_batteries = 0
@@ -73,9 +73,11 @@ class Ship(sim.Component):
 
             # Load containers
             self.hold(loading_time)
+            print(f"{env.now()}: Ship has loaded {self.container_target} "
+                  f"containers as cargo.")
 
             # Check if arrival port has a warning on it
-            if self.current_port.warning_status:
+            if self.destination_port.warning_status:
                 # Then load even more battery containers to compensate
                 self.battery_limit = (ship_battery_limit
                                       + additional_battery_number)
@@ -86,7 +88,13 @@ class Ship(sim.Component):
 
             # Load battery containers
             self.hold(self.battery_limit * container_time)
+            print(f"{env.now()}: Ship has loaded {self.battery_limit} "
+                  f"batteries from {self.current_port_string}.")
+
             self.current_port.batteries -= self.battery_limit
+            print(f"{env.now()}: {self.current_port_string} has "
+                  f"{self.current_port.batteries} batteries left.")
+
             self.current_port.activate(process='check_warning')
 
             # Update battery / charge
@@ -109,7 +117,7 @@ class Ship(sim.Component):
 
             # Arrive at port, but with possible waiting time
             waiting_time = get_port_delay()
-            self.hold(get_port_delay())
+            self.hold(waiting_time)
 
             # Update battery / charge
             depleted_charge = duration * self.power
@@ -172,12 +180,15 @@ class Port(sim.Component):
     # Charging station, which is activated by the arrival of new batteries
     def charging_station(self):
         # Check for any half empty battery containers
-        while len(self.half_empty_charges) > 0:
+        while self.half_empty_batteries > 0:
             # Charge said half empty battery container until it's full
             self.hold(self.half_empty_charges[0] * charging_time)
 
             # Remove battery from half empty list since it's charged
             del self.half_empty_charges[0]
+
+            # Remove half empty battery
+            self.half_empty_batteries -= 1
 
             # Add now fully charged battery
             self.batteries += 1
@@ -213,10 +224,10 @@ class Port(sim.Component):
 
             # Add print for fun (and to check)
             print(f"Warning activated in the port of {self.name}!")
+            print(f"Only {self.batteries} left!")
 
         # Passivate self to save resources - until more batteries are loaded
         self.passivate()
-
 
 
 def port_choice(current_port=None):
@@ -314,4 +325,3 @@ port_dict = {'Rotterdam': port_rotterdam,
 
 # Start simulation
 env.run(till=sim_length)
-
