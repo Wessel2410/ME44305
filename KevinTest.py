@@ -10,13 +10,13 @@ from PortFunctions import find_port_distance, get_port_delay
 # ----- Create constants -----
 container_time = 0.05  # [hr]
 battery_capacity = 3000  # [kWh]
-charging_time = 2  # [hr]
+charging_time = 0.25  # [hr] (First 2 hr but this seems to give good results)
 ship_battery_limit = 25  # [-]
 additional_battery_number = 20  # [-]
 battery_warning = ship_battery_limit  # [-]
 
 # ----- Create simulation constants -----
-sim_ship_number = 10  # [-]
+sim_ship_number = 40  # [-] (First 10 but can now handle more ships)
 sim_length = 10000  # [hr]
 
 
@@ -182,6 +182,7 @@ class Port(sim.Component):
         self.half_empty_batteries = 0  # No half empty batteries to start
         self.half_empty_charges = []  # No half empty batteries to start
         self.warning_status = False
+        self.total_charged = 0
 
     # Charging station, which is activated by the arrival of new batteries
     def charging_station(self):
@@ -209,11 +210,13 @@ class Port(sim.Component):
 
             # Add fully charged battery
             self.batteries += 1
+            self.total_charged += 1
             
-            self.activate(process='check_warning')
+            #self.activate(process='check_warning')
+            self.check_warning()
 
         # Passivate self to save resources - until more batteries arrive
-        self.passivate()
+        # self.passivate()
 
     # Warning check after new batteries are loaded from port to ship
     def check_warning(self):
@@ -236,9 +239,6 @@ class Port(sim.Component):
             # Add print for fun (and to check)
             print(f"Warning deactivated in the port of {self.name}.")
             Trace.append([env.now(), {self.name}, f"Warning deactivated in {self.name}, {self.batteries} available"])
-
-        # Passivate self to save resources - until more batteries are loaded
-        self.passivate()
 
 
 def port_choice(current_port=None):
@@ -359,3 +359,17 @@ for value, port in port_dict.items():
     print(f"{port.name}: Empty batteries {port.empty_batteries}")
     TotBat += port.empty_batteries
 print("Total number of empty batteries in ports: ", TotBat)
+
+print("\n")
+TotBat = 0
+for value, port in port_dict.items():
+    print(f"{port.name}: Half empty batteries {port.half_empty_batteries}")
+    TotBat += port.half_empty_batteries
+print("Total number of half empty batteries remaining in ports: ", TotBat)
+
+print("\n")
+TotBat = 0
+for value, port in port_dict.items():
+    print(f"{port.name}: Total charged {port.total_charged}")
+    TotBat += port.total_charged
+print("Total number of batteries charged in ports: ", TotBat)
