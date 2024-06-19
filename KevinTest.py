@@ -21,7 +21,8 @@ sim_length = 10000  # [hr]
 
 
 # ----- Create record keeping -----
-Trace = [["Time", "Object", "Event"]]
+trace = [["Time", "Object", "Event"]]
+
 
 class ShipGenerator(sim.Component):
     """
@@ -48,6 +49,11 @@ class ShipGenerator(sim.Component):
             # Hold generator to avoid congestion
             self.hold(sim.Uniform(5, 15).sample())
 
+        # Finalize creating ships
+        print("All ships generated!")
+        trace.append([env.now(), "ShipGenerator",
+                      "Finished generating all ships"])
+
 
 class Ship(sim.Component):
     """
@@ -62,7 +68,7 @@ class Ship(sim.Component):
         self.destination_port = destination_port
         self.destination_port_string = destination_port_string
         self.container_target = 0
-        self.battery_limit = ship_battery_limit  # Also assume 3 kWh per battery unit
+        self.battery_limit = ship_battery_limit  # Also assume 3 kWh / battery
         self.power = 1000  # [kW]
         self.full_batteries = 0
         self.empty_batteries = 0
@@ -76,9 +82,12 @@ class Ship(sim.Component):
 
             # Load containers
             self.hold(loading_time)
-            print(f"{env.now()}: {self.name()} has loaded {self.container_target} "
-                  f"containers as cargo.")
-            Trace.append([env.now(), f"{self.name()}", f"loaded {self.container_target} containers as cargo in {self.current_port_string}"])
+            print(f"{env.now()}: {self.name()} has loaded "
+                  f"{self.container_target} containers as cargo.")
+
+            trace.append([env.now(), f"{self.name()}",
+                          f"loaded {self.container_target} containers as cargo "
+                          f"in {self.current_port_string}"])
 
             # Check if arrival port has a warning on it
             if self.destination_port.warning_status:
@@ -94,12 +103,18 @@ class Ship(sim.Component):
             self.hold(self.battery_limit * container_time)
             print(f"{env.now()}: {self.name()} has loaded {self.battery_limit} "
                   f"batteries from {self.current_port_string}.")
-            Trace.append([env.now(),f"{self.name()}", f"Ship has loaded {self.battery_limit} batteries from {self.current_port_string}"])
+            trace.append([env.now(), f"{self.name()}",
+                          f"Ship has loaded {self.battery_limit} batteries "
+                          f"from {self.current_port_string}"])
 
             self.current_port.batteries -= self.battery_limit
+
             print(f"{env.now()}: {self.current_port_string} has "
                   f"{self.current_port.batteries} batteries left.")
-            Trace.append([env.now(),f"{self.current_port_string}", f"{self.current_port_string} has {self.current_port.batteries} batteries left"])
+
+            trace.append([env.now(), f"{self.current_port_string}",
+                          f"{self.current_port_string} has "
+                          f"{self.current_port.batteries} batteries left."])
 
             self.current_port.activate(process='check_warning')
 
@@ -229,16 +244,20 @@ class Port(sim.Component):
             print(f"Warning activated in the port of {self.name}!")
             print(f"Only {self.batteries} left!")
             
-            Trace.append([env.now(), {self.name}, f"Warning activated in {self.name}, only {self.batteries} left"])
-            
-            
+            trace.append([env.now(), self.name,
+                          f"Warning activated in {self.name}, "
+                          f"only {self.batteries} batteries left"])
+
+        # If the battery warning threshold has not been breached
         if (self.batteries > battery_warning) and self.warning_status:
             # If so, then remove warning status
             self.warning_status = False
 
             # Add print for fun (and to check)
             print(f"Warning deactivated in the port of {self.name}.")
-            Trace.append([env.now(), {self.name}, f"Warning deactivated in {self.name}, {self.batteries} available"])
+            trace.append([env.now(), self.name,
+                          f"Warning deactivated in {self.name}, "
+                          f"{self.batteries} batteries available"])
 
 
 def port_choice(current_port=None):
@@ -339,37 +358,44 @@ env.run(till=sim_length)
 
 with open('Trace.csv', 'w', newline='') as file:
     writer = csv.writer(file)
-    writer.writerows(Trace)
+    writer.writerows(trace)
 
 # Results
 print("\n_______________RESULTS_________________")
-TotBat = 0
-for value, port in port_dict.items():
-    print(f"{port.name}: Batteries {port.batteries}")
-    TotBat += port.empty_batteries
-print("Total number of batteries in ports: ", TotBat)
 
 print("\n")
+print("Batteries per port:")
+tot_bat = 0
 for value, port in port_dict.items():
-    print(f"{port.name}: Warningstatus {port.warning_status}")
+    print(f"{port.name}: {port.batteries}")
+    tot_bat += port.empty_batteries
+print("Total number of batteries in ports: ", tot_bat)
+
+print("\n")
+print("Warning status per port:")
+for value, port in port_dict.items():
+    print(f"{port.name}: {port.warning_status}")
     
 print("\n")
-TotBat = 0
+print("Total number of empty batteries per port:")
+tot_bat = 0
 for value, port in port_dict.items():
-    print(f"{port.name}: Empty batteries {port.empty_batteries}")
-    TotBat += port.empty_batteries
-print("Total number of empty batteries in ports: ", TotBat)
+    print(f"{port.name}: {port.empty_batteries}")
+    tot_bat += port.empty_batteries
+print("Total number of empty batteries in ports: ", tot_bat)
 
 print("\n")
-TotBat = 0
+print("Total number of half empty batteries remaining per port:")
+tot_bat = 0
 for value, port in port_dict.items():
-    print(f"{port.name}: Half empty batteries {port.half_empty_batteries}")
-    TotBat += port.half_empty_batteries
-print("Total number of half empty batteries remaining in ports: ", TotBat)
+    print(f"{port.name}: {port.half_empty_batteries}")
+    tot_bat += port.half_empty_batteries
+print("Total number of half empty batteries remaining in ports: ", tot_bat)
 
 print("\n")
-TotBat = 0
+print("Total number of batteries charged per port:")
+tot_bat = 0
 for value, port in port_dict.items():
-    print(f"{port.name}: Total charged {port.total_charged}")
-    TotBat += port.total_charged
-print("Total number of batteries charged in ports: ", TotBat)
+    print(f"{port.name}: {port.total_charged}")
+    tot_bat += port.total_charged
+print("Total number of batteries charged in ports: ", tot_bat)
