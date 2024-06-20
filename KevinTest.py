@@ -10,13 +10,13 @@ from PortFunctions import find_port_distance, get_port_delay
 # ----- Create constants -----
 container_time = 0.05  # [hr]
 battery_capacity = 3000  # [kWh]
-charging_time = 0.25  # [hr] (First 2 hr but this seems to give good results)
+charging_time = 1  # [hr]
 ship_battery_limit = 25  # [-]
 additional_battery_number = 20  # [-]
 battery_warning = ship_battery_limit  # [-]
 
 # ----- Create simulation constants -----
-sim_ship_number = 40  # [-] (First 10 but can now handle more ships)
+sim_ship_number = 100  # [-] (Thirty should be enough for a whole fleet)
 sim_length = 10000  # [hr]
 
 
@@ -88,6 +88,8 @@ class Ship(sim.Component):
             trace.append([env.now(), f"{self.name()}",
                           f"loaded {self.container_target} containers as cargo "
                           f"in {self.current_port_string}"])
+
+            self.current_port.cargo_output += self.container_target
 
             # Check if arrival port has a warning on it
             if self.destination_port.warning_status:
@@ -171,6 +173,8 @@ class Ship(sim.Component):
             unloading_time = self.container_target * container_time
             self.hold(unloading_time)
 
+            self.current_port.cargo_input += self.container_target
+
             # Start unloading batteries
             battery_unloading_time = self.battery_limit * container_time
             self.hold(battery_unloading_time)
@@ -189,7 +193,7 @@ class Port(sim.Component):
     """
     Instance of a port, with a name and accompanying queue.
     """
-    def setup(self):
+    def setup(self, charging_spots):
         self.name = self.name()
         self.queue = sim.Queue(self.name)
         self.batteries = 100  # Assume 100 batteries in port to start
@@ -198,6 +202,11 @@ class Port(sim.Component):
         self.half_empty_charges = []  # No half empty batteries to start
         self.warning_status = False
         self.total_charged = 0
+        self.cargo_input = 0  # Amount of containers entering port
+        self.cargo_output = 0  # Amount of containers leaving port
+        self.warning_times = 0  # Amount of warning turn-ons
+        self.zero_crossings = 0  # Amount of hours #batteries are below zero
+        self.charging_spots = charging_spots
 
     # Charging station, which is activated by the arrival of new batteries
     def charging_station(self):
@@ -221,11 +230,20 @@ class Port(sim.Component):
             self.hold(charging_time)
 
             # Update the amount of empty batteries left
-            self.empty_batteries -= 1
+            if self.empty_batteries <= self.charging_spots:
+                # Add fully charged batteries
+                self.batteries += self.empty_batteries
+                self.total_charged += self.empty_batteries
 
-            # Add fully charged battery
-            self.batteries += 1
-            self.total_charged += 1
+                # Set current empty batteries to zero
+                self.empty_batteries = 0
+            else:
+                # Remove charged batteries
+                self.empty_batteries -= self.charging_spots
+
+                # Add fully charged batteries
+                self.batteries += self.charging_spots
+                self.total_charged += self.charging_spots
             
             #self.activate(process='check_warning')
             self.check_warning()
@@ -235,8 +253,12 @@ class Port(sim.Component):
 
     # Warning check after new batteries are loaded from port to ship
     def check_warning(self):
+        # If batteries are below zero
+        if self.batteries < 0:
+            self.zero_crossings += 1
+
         # If battery warning threshold has been breached
-        if self.batteries <= battery_warning:
+        if self.batteries <= battery_warning and not self.warning_status:
             # Then add the warning status to the port
             self.warning_status = True
 
@@ -247,6 +269,8 @@ class Port(sim.Component):
             trace.append([env.now(), self.name,
                           f"Warning activated in {self.name}, "
                           f"only {self.batteries} batteries left"])
+
+            self.warning_times += 1
 
         # If the battery warning threshold has not been breached
         if (self.batteries > battery_warning) and self.warning_status:
@@ -308,27 +332,27 @@ env = sim.Environment(trace=False)
 ShipGenerator(amount_of_ships=sim_ship_number)
 
 # Create all ports included in the simulation
-port_rotterdam = Port('Rotterdam')
-port_antwerp = Port('Antwerp')
-port_amsterdam = Port('Amsterdam')
-port_duisburg = Port('Duisburg')
-port_vlissingen = Port('Vlissingen')
-port_paris = Port('Paris')
-port_Liege = Port('Liege')
-port_terneuzen = Port('Terneuzen')
-port_moerdijk = Port('Moerdijk')
-port_cologne = Port('Cologne')
-port_mannheim = Port('Mannheim')
-port_karlsruhe = Port('Karlsruhe')
-port_louviere = Port('Louviere')
-port_sittard = Port('Sittard')
-port_velsen = Port('Velsen')
-port_strasbourg = Port('Strasbourg')
-port_dordrecht = Port('Dordrecht')
-port_neuss = Port('Neuss')
-port_ludwigshafen = Port('Ludwigshafen')
-port_brussels = Port('Brussels')
-port_delfzijl = Port('Delfzijl')
+port_rotterdam = Port('Rotterdam', charging_spots=20)
+port_antwerp = Port('Antwerp', charging_spots=20)
+port_amsterdam = Port('Amsterdam', charging_spots=15)
+port_duisburg = Port('Duisburg', charging_spots=15)
+port_vlissingen = Port('Vlissingen', charging_spots=10)
+port_paris = Port('Paris', charging_spots=8)
+port_Liege = Port('Liege', charging_spots=5)
+port_terneuzen = Port('Terneuzen', charging_spots=3)
+port_moerdijk = Port('Moerdijk', charging_spots=3)
+port_cologne = Port('Cologne', charging_spots=3)
+port_mannheim = Port('Mannheim', charging_spots=3)
+port_karlsruhe = Port('Karlsruhe', charging_spots=3)
+port_louviere = Port('Louviere', charging_spots=3)
+port_sittard = Port('Sittard', charging_spots=3)
+port_velsen = Port('Velsen', charging_spots=3)
+port_strasbourg = Port('Strasbourg', charging_spots=3)
+port_dordrecht = Port('Dordrecht', charging_spots=3)
+port_neuss = Port('Neuss', charging_spots=3)
+port_ludwigshafen = Port('Ludwigshafen', charging_spots=3)
+port_brussels = Port('Brussels', charging_spots=3)
+port_delfzijl = Port('Delfzijl', charging_spots=3)
 
 # Create dictionary that maps strings to objects
 port_dict = {'Rotterdam': port_rotterdam,
@@ -360,42 +384,94 @@ with open('Trace.csv', 'w', newline='') as file:
     writer = csv.writer(file)
     writer.writerows(trace)
 
+
 # Results
-print("\n_______________RESULTS_________________")
+def results_printer():
+    """
+    Prints results after running the entire simulation.
+    Put into a function, so it can be hidden away.
 
-print("\n")
-print("Batteries per port:")
-tot_bat = 0
-for value, port in port_dict.items():
-    print(f"{port.name}: {port.batteries}")
-    tot_bat += port.empty_batteries
-print("Total number of batteries in ports: ", tot_bat)
+    """
+    print("\n_______________RESULTS_________________")
 
-print("\n")
-print("Warning status per port:")
-for value, port in port_dict.items():
-    print(f"{port.name}: {port.warning_status}")
-    
-print("\n")
-print("Total number of empty batteries per port:")
-tot_bat = 0
-for value, port in port_dict.items():
-    print(f"{port.name}: {port.empty_batteries}")
-    tot_bat += port.empty_batteries
-print("Total number of empty batteries in ports: ", tot_bat)
+    print("\n")
+    print("Batteries per port:")
+    tot_bat = 0
+    for value, port in port_dict.items():
+        print(f"{port.name}: {port.batteries}")
+        tot_bat += port.batteries
+    print("Total number of batteries in ports: ", tot_bat)
 
-print("\n")
-print("Total number of half empty batteries remaining per port:")
-tot_bat = 0
-for value, port in port_dict.items():
-    print(f"{port.name}: {port.half_empty_batteries}")
-    tot_bat += port.half_empty_batteries
-print("Total number of half empty batteries remaining in ports: ", tot_bat)
+    print("\n")
+    print("Warning status per port:")
+    for value, port in port_dict.items():
+        print(f"{port.name}: {port.warning_status}")
 
-print("\n")
-print("Total number of batteries charged per port:")
-tot_bat = 0
-for value, port in port_dict.items():
-    print(f"{port.name}: {port.total_charged}")
-    tot_bat += port.total_charged
-print("Total number of batteries charged in ports: ", tot_bat)
+    print("\n")
+    total_warnings = 0
+    print("Amount of warnings per port:")
+    for value, port in port_dict.items():
+        print(f"{port.name}: {port.warning_times}")
+        total_warnings += port.warning_times
+    print("Total numbers of warnings during the simulation: ", total_warnings)
+
+    print("\n")
+    total_zeros = 0
+    print("Amount of hours below zero batteries per port:")
+    for value, port in port_dict.items():
+        print(f"{port.name}: {port.zero_crossings}")
+        total_zeros += port.zero_crossings
+    print("Total amount of hours below zero batteries: ", total_zeros)
+
+    print("\n")
+    print("Total number of empty batteries per port:")
+    total_empty_bat = 0
+    for value, port in port_dict.items():
+        print(f"{port.name}: {port.empty_batteries}")
+        total_empty_bat += port.empty_batteries
+    print("Total number of empty batteries in ports: ", total_empty_bat)
+
+    print("\n")
+    print("Total number of half empty batteries remaining per port:")
+    total_half_bat = 0
+    for value, port in port_dict.items():
+        print(f"{port.name}: {port.half_empty_batteries}")
+        total_half_bat += port.half_empty_batteries
+    print("Total number of half empty batteries remaining in ports: ",
+          total_half_bat)
+
+    print("\n")
+    print("Total number of batteries charged per port:")
+    total_charged_bat = 0
+    for value, port in port_dict.items():
+        print(f"{port.name}: {port.total_charged}")
+        total_charged_bat += port.total_charged
+    print("Total number of batteries charged in ports: ", total_charged_bat)
+
+    print("\n")
+    print("Total number of containers entering each port:")
+    total_input_con = 0
+    for value, port in port_dict.items():
+        print(f"{port.name}: {port.cargo_input}")
+        total_input_con += port.cargo_input
+    print("Total number of containers entered in ports: ", total_input_con)
+
+    print("\n")
+    print("Total number of containers leaving each port:")
+    total_output_con = 0
+    for value, port in port_dict.items():
+        print(f"{port.name}: {port.cargo_output}")
+        total_output_con += port.cargo_output
+    print("Total number of containers left in ports: ", total_output_con)
+
+    print("\n")
+    print("Total number of containers handled per port:")
+    total_containers = 0
+    for value, port in port_dict.items():
+        print(f"{port.name}: {port.cargo_input + port.cargo_output}")
+        total_containers += port.cargo_input + port.cargo_output
+    print("Total number of containers handled in ports: ", total_containers)
+
+
+# Print results
+results_printer()
