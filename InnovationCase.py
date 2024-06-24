@@ -16,8 +16,9 @@ additional_battery_number = 20  # [-]
 battery_warning = ship_battery_limit  # [-]
 
 # ----- Create simulation constants -----
-sim_ship_number = 10  # [-] (First 10 but can now handle more ships)
+sim_ship_number = 30  # [-] (First 10 but can now handle more ships)
 sim_length = 10000  # [hr]
+zero_holdings = 0
 
 # ----- Create record keeping -----
 trace = [["Time", "Object", "Event"]]
@@ -113,6 +114,13 @@ class Ship(sim.Component):
             else:
                 # Then reset to nominal value
                 self.battery_limit = required_batteries
+
+            # Check if port has enough batteries or not, otherwise hold
+            while self.current_port.batteries - self.battery_limit < 0:
+                self.hold(1)
+                global zero_holdings
+                zero_holdings += 1
+                print("Holding!")
 
             # Load battery containers
             self.hold(self.battery_limit * container_time)
@@ -396,8 +404,8 @@ def results_printer():
     """
     Prints results after running the entire simulation.
     Put into a function, so it can be hidden away.
-
     """
+
     print("\n_______________RESULTS_________________")
 
     print("\n")
@@ -478,6 +486,11 @@ def results_printer():
         total_containers += port.cargo_input + port.cargo_output
     print("Total number of containers handled in ports: ", total_containers)
 
+    print("\n")
+    print(f"Total amount of hours held in port due to absence of batteries: "
+          f"{zero_holdings}")
+
 
 # Print results
 results_printer()
+
