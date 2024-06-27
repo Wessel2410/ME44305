@@ -3,6 +3,8 @@ import salabim as sim
 import numpy as np
 import math
 import csv
+import random
+import time
 
 # ----- Import function -----
 from PortFunctions import find_port_distance, get_port_delay
@@ -341,6 +343,7 @@ def port_choice(current_port=None):
 
 # Create environment
 env = sim.Environment(trace=False)
+random.seed(time.time())
 
 # Create a certain number of ships using the Ship Generator
 ShipGenerator(amount_of_ships=sim_ship_number)
