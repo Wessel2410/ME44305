@@ -1,15 +1,15 @@
 import numpy as np
-Amount_of_Holdup_base = []
-Amount_of_Holdup_inn = []
-from KevinTest_integrate import Sim
+from BaseCase_integrate import Sim
 from InnovationCase_integrate import Sim2
 import matplotlib.pyplot as plt
 
+Amount_of_Holdup_base = []
 Total_bat_base = []
 Total_warn_base = []
 Total_charge_base = []
 Total_cont_base = []
 
+Amount_of_Holdup_inn = []
 Total_bat_inn = []
 Total_warn_inn = []
 Total_charge_inn = []

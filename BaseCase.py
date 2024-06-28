@@ -397,7 +397,7 @@ port_dict = {'Rotterdam': port_rotterdam,
 # Start simulation
 env.run(till=sim_length)
 
-with open('Trace.csv', 'w', newline='') as file:
+with open('BaseTrace.csv', 'w', newline='') as file:
     writer = csv.writer(file)
     writer.writerows(trace)
 
