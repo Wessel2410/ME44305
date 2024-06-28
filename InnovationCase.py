@@ -21,6 +21,7 @@ battery_warning = ship_battery_limit  # [-]
 sim_ship_number = 30  # [-] (First 10 but can now handle more ships)
 sim_length = 10000  # [hr]
 zero_holdings = 0
+Print_Trace = False
 
 # ----- Create record keeping -----
 trace = [["Time", "Object", "Event"]]
@@ -53,7 +54,8 @@ class ShipGenerator(sim.Component):
             self.hold(sim.Uniform(5, 15).sample())
 
         # Finalize creating ships
-        print("All ships generated!")
+        if Print_Trace:
+            print("All ships generated!")
         trace.append([env.now(), "ShipGenerator",
                       "Finished generating all ships"])
 
@@ -86,8 +88,9 @@ class Ship(sim.Component):
 
             # Load containers
             self.hold(loading_time)
-            print(f"{env.now()}: {self.name()} has loaded "
-                  f"{self.container_target} containers as cargo.")
+            if Print_Trace:
+                print(f"{env.now()}: {self.name()} has loaded "
+                      f"{self.container_target} containers as cargo.")
 
             trace.append([env.now(), f"{self.name()}",
                           f"loaded {self.container_target} containers as cargo "
@@ -122,21 +125,24 @@ class Ship(sim.Component):
                 self.hold(1)
                 global zero_holdings
                 zero_holdings += 1
-                print("Holding!")
+                if Print_Trace:
+                    print("Holding!")
 
             # Load battery containers
             self.hold(self.battery_limit * container_time)
-
-            print(f"{env.now()}: {self.name()} has loaded {self.battery_limit} "
-                  f"batteries from {self.current_port_string}.")
+            
+            if Print_Trace:
+                print(f"{env.now()}: {self.name()} has loaded {self.battery_limit} "
+                      f"batteries from {self.current_port_string}.")
             trace.append([env.now(), f"{self.name()}",
                           f"Ship has loaded {self.battery_limit} batteries "
                           f"from {self.current_port_string}"])
 
             self.current_port.batteries -= self.battery_limit
-
-            print(f"{env.now()}: {self.current_port_string} has "
-                  f"{self.current_port.batteries} batteries left.")
+            
+            if Print_Trace:
+                print(f"{env.now()}: {self.current_port_string} has "
+                      f"{self.current_port.batteries} batteries left.")
 
             trace.append([env.now(), f"{self.current_port_string}",
                           f"{self.current_port_string} has "
@@ -279,8 +285,9 @@ class Port(sim.Component):
             self.warning_status = True
 
             # Add print for fun (and to check)
-            print(f"Warning activated in the port of {self.name}!")
-            print(f"Only {self.batteries} left!")
+            if Print_Trace:
+                print(f"Warning activated in the port of {self.name}!")
+                print(f"Only {self.batteries} left!")
 
             trace.append([env.now(), self.name,
                           f"Warning activated in {self.name}, "
@@ -294,7 +301,8 @@ class Port(sim.Component):
             self.warning_status = False
 
             # Add print for fun (and to check)
-            print(f"Warning deactivated in the port of {self.name}.")
+            if Print_Trace:
+                print(f"Warning deactivated in the port of {self.name}.")
             trace.append([env.now(), self.name,
                           f"Warning deactivated in {self.name}, "
                           f"{self.batteries} batteries available"])

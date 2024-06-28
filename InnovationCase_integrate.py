@@ -8,23 +8,22 @@ import time
 
 zero_holdings = 0
 
-def Sim():
-    
+def Sim2():
     # ----- Import function -----
     from PortFunctions import find_port_distance, get_port_delay
     
     # ----- Create constants -----
     container_time = 0.05  # [hr]
     battery_capacity = 3000  # [kWh]
-    charging_time = 1  # [hr]
+    charging_time = 1  # [hr] (First 2 hr but this seems to give good results)
     ship_battery_limit = 25  # [-]
     additional_battery_number = 20  # [-]
     battery_warning = ship_battery_limit  # [-]
     
     # ----- Create simulation constants -----
-    sim_ship_number = 30  # [-] (Thirty should be enough for a whole fleet)
+    sim_ship_number = 30  # [-] (First 10 but can now handle more ships)
     sim_length = 10000  # [hr]
-    #zero_holdings = 0  # Amount of times a ship has to wait for batteries
+    #zero_holdings = 0
     Print_Trace = False
     
     # ----- Create record keeping -----
@@ -35,6 +34,7 @@ def Sim():
         """
         Creates a certain amount of ships, with accompanying start and ending ports.
         """
+    
         def setup(self, amount_of_ships):
             self.amount_of_ships = amount_of_ships
     
@@ -59,7 +59,6 @@ def Sim():
             # Finalize creating ships
             if Print_Trace:
                 print("All ships generated!")
-            
             trace.append([env.now(), "ShipGenerator",
                           "Finished generating all ships"])
     
@@ -68,6 +67,7 @@ def Sim():
         """
         Instance of a ship, with starting and ending ports.
         """
+    
         def setup(self, current_port, destination_port,
                   current_port_string, destination_port_string):
             self.length = 100  # [m]
@@ -77,7 +77,7 @@ def Sim():
             self.destination_port = destination_port
             self.destination_port_string = destination_port_string
             self.container_target = 0
-            self.battery_limit = ship_battery_limit  # Also assume 3 kWh / battery
+            self.battery_limit = ship_battery_limit
             self.power = 1000  # [kW]
             self.full_batteries = 0
             self.empty_batteries = 0
@@ -101,15 +101,27 @@ def Sim():
     
                 self.current_port.cargo_output += self.container_target
     
+                # Find port distance
+                distance = find_port_distance(self.current_port_string,
+                                              self.destination_port_string)
+    
+                # Calculate voyage duration
+                duration = distance / self.speed
+    
+                # Calculate amount of containers required
+                required_charge = duration * self.power
+                required_batteries = math.ceil(required_charge / battery_capacity
+                                               * 1.15)
+    
                 # Check if arrival port has a warning on it
                 if self.destination_port.warning_status:
                     # Then load even more battery containers to compensate
-                    self.battery_limit = (ship_battery_limit
+                    self.battery_limit = (required_batteries
                                           + additional_battery_number)
                 # If no warning exists
                 else:
                     # Then reset to nominal value
-                    self.battery_limit = ship_battery_limit
+                    self.battery_limit = required_batteries
     
                 # Check if port has enough batteries or not, otherwise hold
                 while self.current_port.batteries - self.battery_limit < 0:
@@ -121,6 +133,7 @@ def Sim():
     
                 # Load battery containers
                 self.hold(self.battery_limit * container_time)
+                
                 if Print_Trace:
                     print(f"{env.now()}: {self.name()} has loaded {self.battery_limit} "
                           f"batteries from {self.current_port_string}.")
@@ -147,13 +160,6 @@ def Sim():
                 # Leave the current port's queue if it's in one
                 if self in self.current_port.queue:
                     self.leave(self.current_port.queue)
-    
-                # Find port distance
-                distance = find_port_distance(self.current_port_string,
-                                              self.destination_port_string)
-    
-                # Calculate voyage duration
-                duration = distance / self.speed
     
                 # Start holding for the duration of voyage in hours
                 self.hold(duration)
@@ -203,7 +209,8 @@ def Sim():
                 self.current_port.batteries += self.full_batteries
                 self.current_port.empty_batteries += self.empty_batteries
                 self.current_port.half_empty_batteries += 1
-                self.current_port.half_empty_charges.append(self.half_battery_charge)
+                self.current_port.half_empty_charges.append(
+                    self.half_battery_charge)
     
                 # Activate the charging station since new batteries have arrived
                 self.current_port.activate(process='charging_station')
@@ -213,6 +220,7 @@ def Sim():
         """
         Instance of a port, with a name and accompanying queue.
         """
+    
         def setup(self, charging_spots):
             self.name = self.name()
             self.queue = sim.Queue(self.name)
@@ -246,7 +254,7 @@ def Sim():
     
             # Check for any empty batteries
             while self.empty_batteries > 0:
-                # Charge for a battery's charging time
+                # Charge a certain amount of batteries dependent on number of spots
                 self.hold(charging_time)
     
                 # Update the amount of empty batteries left
@@ -264,12 +272,9 @@ def Sim():
                     # Add fully charged batteries
                     self.batteries += self.charging_spots
                     self.total_charged += self.charging_spots
-                
-                #self.activate(process='check_warning')
-                self.check_warning()
     
-            # Passivate self to save resources - until more batteries arrive
-            # self.passivate()
+                # self.activate(process='check_warning')
+                self.check_warning()
     
         # Warning check after new batteries are loaded from port to ship
         def check_warning(self):
@@ -286,10 +291,10 @@ def Sim():
                 if Print_Trace:
                     print(f"Warning activated in the port of {self.name}!")
                     print(f"Only {self.batteries} left!")
-                
+    
                 trace.append([env.now(), self.name,
                               f"Warning activated in {self.name}, "
-                              f"only {self.batteries} batteries left"])
+                              f"only {self.batteries} batteries left!"])
     
                 self.warning_times += 1
     
@@ -403,7 +408,7 @@ def Sim():
     # Start simulation
     env.run(till=sim_length)
     
-    with open('Trace.csv', 'w', newline='') as file:
+    with open('InnovationTrace.csv', 'w', newline='') as file:
         writer = csv.writer(file)
         writer.writerows(trace)
     
