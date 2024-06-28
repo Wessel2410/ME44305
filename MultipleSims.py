@@ -76,7 +76,19 @@ Array_Cont_inn = np.array(Total_cont_inn)
 
 
 print("\n\nResults between simulations")
-print(f"Mean waiting time: \nBase case: {Array_holdup_base.mean()}\nInnovation case: {Array_holdup_inn.mean()}")
+print(f"Mean waiting time: \n    Base case: {Array_holdup_base.mean()}\n    Innovation case: {Array_holdup_inn.mean()}")
+print(f"Std waiting time: \n    Base case: {Array_holdup_base.std()}\n    Innovation case: {Array_holdup_inn.std()}")
+print(f"Mean battery containers: \n    Base case: {Array_Bat_base.mean()}\n    Innovation case: {Array_Bat_inn.mean()}")
+print(f"Std battery containers: \n    Base case: {Array_Bat_base.std()}\n    Innovation case: {Array_Bat_inn.std()}")
+print(f"Mean charged batteries: \n    Base case: {Array_Charge_base.mean()}\n    Innovation case: {Array_Charge_inn.mean()}")
+print(f"Std charged batteries: \n    Base case: {Array_Charge_base.std()}\n    Innovation case: {Array_Charge_inn.std()}")
+print(f"Mean warnings in ports: \n    Base case: {Array_Warn_base.mean()}\n    Innovation case: {Array_Warn_inn.mean()}")
+print(f"Std warnings in ports: \n    Base case: {Array_Warn_base.std()}\n    Innovation case: {Array_Warn_inn.std()}")
+print(f"Mean transported containers: \n    Base case: {Array_Cont_base.mean()}\n    Innovation case: {Array_Cont_inn.mean()}")
+print(f"Std transported containers: \n    Base case: {Array_Cont_base.std()}\n    Innovation case: {Array_Cont_inn.std()}")
+
+
+
 
 fig1 = plt.figure(figsize=(10,10))
 plt.hist(Array_holdup_base,bins=20)
